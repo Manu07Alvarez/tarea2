@@ -1,4 +1,5 @@
 ﻿Imports Microsoft.Office.Interop
+Imports Microsoft.Office.Interop.Excel
 
 Imports System.Runtime.InteropServices
 
@@ -10,30 +11,35 @@ Public Class Form1
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         OpenFileDialog1.Filter = "Archivos Excel(*.xlsx)|*.xlsx|Excel (97-2003) files(*.xls)|*.xls"
         If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
-            WorkBook = Excel.Workbooks.Open(OpenFileDialog1.FileName)
+            Dim WorkBooks = Excel.Workbooks.Open(OpenFileDialog1.FileName)
+            WorkBook = WorkBooks
             For Each WorkSheet In Excel.Sheets
                 ListBox1.Items.Add(WorkSheet.Name)
             Next
         End If
     End Sub
 
+
+
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
-        If Not IsNothing(Excel) Then
-            If Not IsNothing(WorkBook) Then
-                Debug.WriteLine("a1")
-                WorkBook.Close()
-                Excel.Quit()
-                Marshal.ReleaseComObject(WorkBook)
-                If Not IsNothing(WorkSheet) Then Marshal.ReleaseComObject(WorkSheet)
-                If Not IsNothing(range) Then Marshal.ReleaseComObject(range)
-            End If
-            Marshal.ReleaseComObject(Excel)
+        If Not IsNothing(WorkBook) Then
+            Debug.WriteLine("a1")
+            WorkBook.Close()
+            WorkBook = Nothing
         End If
+        Excel.Quit()
         Debug.WriteLine("se cerro")
 
     End Sub
 
+    Private Shared Function Selector(cell As Range) As String
+        If IsNothing(cell.Value2) Then
+            Return ""
+        End If
+    End Function
+
     Private Function DataSetCreate()
+        range = WorkSheet.Range(range.Address.Replace("$", ""))
         Dim table As New Data.DataTable
         Dim Row As DataRow
         Dim rowCount = range.Rows.Count
@@ -41,7 +47,9 @@ Public Class Form1
         For i = 1 To range.Columns.Count
             table.Columns.Add(range.Cells(1, i).Value2.ToString)
         Next
-
+        Dim nana = range.Address.Replace("$", "")
+        Dim dam = WorkSheet.Range(nana).Cells.Cast(Of Range).Select(Selector()).ToArray
+        Debug.WriteLine(dam)
         Dim rowCounter As Integer
         For i = 2 To rowCount
             Row = table.NewRow()
@@ -63,7 +71,6 @@ Public Class Form1
         WorkBook.Worksheets(ListBox1.SelectedItem).activate()
         WorkSheet = WorkBook.Worksheets(ListBox1.SelectedItem)
         Button2.Visible = True
-        Debug.WriteLine(WorkSheet.Name)
         range = WorkSheet.UsedRange
         DataGridView1.DataSource = DataSetCreate()
     End Sub
@@ -82,7 +89,4 @@ Public Class Form1
         WorkBook.Save()
     End Sub
 
-    Private Sub Form1_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-
-    End Sub
 End Class
