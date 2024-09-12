@@ -6,6 +6,7 @@ Imports System.Runtime.InteropServices
 Public Class Form1
     Dim Excel As New Excel.Application
     Dim WorkBook As Excel.Workbook
+    Dim rech As Excel.Research
     Dim WorkSheet As Excel.Worksheet
     Dim range As Excel.Range
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
@@ -28,44 +29,8 @@ Public Class Form1
             WorkBook = Nothing
         End If
         Excel.Quit()
-        Debug.WriteLine("se cerro")
-
     End Sub
 
-    Private Shared Function Selector(cell As Range) As String
-        If IsNothing(cell.Value2) Then
-            Return ""
-        End If
-    End Function
-
-    Private Function DataSetCreate()
-        range = WorkSheet.Range(range.Address.Replace("$", ""))
-        Dim table As New Data.DataTable
-        Dim Row As DataRow
-        Dim rowCount = range.Rows.Count
-        Dim columnCount = range.Columns.Count
-        For i = 1 To range.Columns.Count
-            table.Columns.Add(range.Cells(1, i).Value2.ToString)
-        Next
-        Dim nana = range.Address.Replace("$", "")
-        Dim dam = WorkSheet.Range(nana).Cells.Cast(Of Range).Select(Selector()).ToArray
-        Debug.WriteLine(dam)
-        Dim rowCounter As Integer
-        For i = 2 To rowCount
-            Row = table.NewRow()
-            rowCounter = 0
-            For j = 1 To columnCount
-                If (Not IsNothing(range.Cells(i, j)) And Not IsNothing(range.Cells(i, j).value2)) Then
-                    Row(rowCounter) = range.Cells(i, j).Value2.ToString
-                Else
-                    Row(i) = ""
-                End If
-                rowCounter += 1
-            Next
-            table.Rows.Add(Row)
-        Next
-        Return table
-    End Function
 
     Private Sub ListBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListBox1.SelectedIndexChanged
         WorkBook.Worksheets(ListBox1.SelectedItem).activate()
@@ -74,6 +39,17 @@ Public Class Form1
         range = WorkSheet.UsedRange
         DataGridView1.DataSource = DataSetCreate()
     End Sub
+
+    Private Function DataSetCreate()
+        Dim pathto = (WorkBook.Path + "\" + WorkBook.Name)
+        Dim connString As String = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + pathto + ";Extended Properties='Excel 12.0 Xml;HDR=YES';"
+        Dim conn = New OleDb.OleDbConnection(connString)
+        Dim sqlstr = "Select * from " + "[" + WorkSheet.Name + "$" + "]"
+        Dim command = New OleDb.OleDbDataAdapter(sqlstr, conn)
+        Dim table As New Data.DataSet
+        command.Fill(table)
+        Return table.Tables(0)
+    End Function
 
     Dim row As Integer
     Dim column As Integer
@@ -88,5 +64,6 @@ Public Class Form1
     Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
         WorkBook.Save()
     End Sub
+
 
 End Class

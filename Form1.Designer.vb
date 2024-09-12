@@ -33,7 +33,6 @@ Partial Class Form1
         Me.DataGridView1 = New System.Windows.Forms.DataGridView()
         Me.BackgroundWorker1 = New System.ComponentModel.BackgroundWorker()
         Me.Button2 = New System.Windows.Forms.Button()
-        Me.kill = New System.Windows.Forms.Button()
         CType(Me.BindingNavigator1, System.ComponentModel.ISupportInitialize).BeginInit()
         Me.BindingNavigator1.SuspendLayout()
         CType(Me.DataGridView1, System.ComponentModel.ISupportInitialize).BeginInit()
@@ -120,21 +119,11 @@ Partial Class Form1
         Me.Button2.UseVisualStyleBackColor = True
         Me.Button2.Visible = False
         '
-        'kill
-        '
-        Me.kill.Location = New System.Drawing.Point(155, 321)
-        Me.kill.Name = "kill"
-        Me.kill.Size = New System.Drawing.Size(87, 23)
-        Me.kill.TabIndex = 5
-        Me.kill.Text = "MatarProceso"
-        Me.kill.UseVisualStyleBackColor = True
-        '
         'Form1
         '
         Me.AutoScaleDimensions = New System.Drawing.SizeF(6.0!, 13.0!)
         Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
         Me.ClientSize = New System.Drawing.Size(800, 450)
-        Me.Controls.Add(Me.kill)
         Me.Controls.Add(Me.Button2)
         Me.Controls.Add(Me.DataGridView1)
         Me.Controls.Add(Me.BindingNavigator1)
@@ -160,5 +149,4 @@ Partial Class Form1
     Friend WithEvents DataGridView1 As DataGridView
     Friend WithEvents BackgroundWorker1 As System.ComponentModel.BackgroundWorker
     Friend WithEvents Button2 As Button
-    Friend WithEvents kill As Button
 End Class
