@@ -25,13 +25,6 @@ Public Class Form1
         End If
     End Sub
 
-    Private Sub CloseWorkbook()
-        If Not WorkBook.Saved Then
-            Dim savestate = (MsgBox("Queres Guardar antes de salir?", vbYesNo) = vbYes)
-            WorkBook.Close(SaveChanges:=savestate)
-        End If
-    End Sub
-
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         If Not IsNothing(WorkBook) Then
             CloseWorkbook()
@@ -52,6 +45,19 @@ Public Class Form1
         End If
     End Sub
 
+    Dim row As Integer
+    Dim column As Integer
+    Private Sub DataGridView1_CellBeginEdit(sender As Object, e As DataGridViewCellCancelEventArgs) Handles DataGridView1.CellBeginEdit
+        column = DataGridView1.CurrentCell.ColumnIndex + 1
+        row = DataGridView1.CurrentCell.RowIndex + 2
+    End Sub
+    Private Sub DataGridView1_CellEndEdit(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellEndEdit
+        WorkSheet.Cells(row, column) = DataGridView1.CurrentCell.Value
+    End Sub
+    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
+        WorkBook.Save()
+    End Sub
+
     Private Function DataSetCreate()
         Dim pathto = (WorkBook.Path + "\" + WorkBook.Name)
         Dim connString As String = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + pathto + ";Extended Properties='Excel 12.0 Xml;HDR=YES';"
@@ -70,18 +76,10 @@ Public Class Form1
 
     End Sub
 
-    Dim row As Integer
-    Dim column As Integer
-    Private Sub DataGridView1_CellBeginEdit(sender As Object, e As DataGridViewCellCancelEventArgs) Handles DataGridView1.CellBeginEdit
-        column = DataGridView1.CurrentCell.ColumnIndex + 1
-        row = DataGridView1.CurrentCell.RowIndex + 2
+    Private Sub CloseWorkbook()
+        If Not WorkBook.Saved Then
+            Dim savestate = (MsgBox("Queres Guardar antes de salir?", vbYesNo) = vbYes)
+            WorkBook.Close(SaveChanges:=savestate)
+        End If
     End Sub
-    Private Sub DataGridView1_CellEndEdit(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellEndEdit
-        WorkSheet.Cells(row, column) = DataGridView1.CurrentCell.Value
-    End Sub
-    Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Click
-        WorkBook.Save()
-    End Sub
-
-
 End Class
