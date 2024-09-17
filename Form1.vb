@@ -8,11 +8,14 @@ Public Class Form1
     Dim WorkSheet As Excel.Worksheet
     Dim cache As Caching.ObjectCache = Caching.MemoryCache.Default
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
-        If Not IsNothing(WorkBook) Then
-            CloseWorkbook()
-        End If
         OpenFileDialog1.Filter = "Archivos Excel(*.xlsx)|*.xlsx|Excel (97-2003) files(*.xls)|*.xls"
         If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
+            If Not IsNothing(WorkBook) Then
+                CloseWorkbook()
+                For Each i In cache
+                    cache.Remove(i.Key)
+                Next
+            End If
             Dim WorkBooks = Excel.Workbooks.Open(OpenFileDialog1.FileName)
             WorkBook = WorkBooks
             ListBox1.Items.Clear()
@@ -23,8 +26,10 @@ Public Class Form1
     End Sub
 
     Private Sub CloseWorkbook()
-        Dim savestate = (MsgBox("Queres Guardar antes de salir?", vbYesNo) = vbYes)
-        WorkBook.Close(SaveChanges:=savestate)
+        If Not WorkBook.Saved Then
+            Dim savestate = (MsgBox("Queres Guardar antes de salir?", vbYesNo) = vbYes)
+            WorkBook.Close(SaveChanges:=savestate)
+        End If
     End Sub
 
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
