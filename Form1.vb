@@ -1,43 +1,50 @@
-﻿Imports Microsoft.Office.Interop
-Imports Microsoft.Office.Interop.Excel
-
-Imports System.Runtime.InteropServices
+﻿
+Imports Microsoft.Office.Interop
+Imports System.Runtime
 
 Public Class Form1
     Dim Excel As New Excel.Application
     Dim WorkBook As Excel.Workbook
-    Dim rech As Excel.Research
     Dim WorkSheet As Excel.Worksheet
-    Dim range As Excel.Range
+    Dim cache As Caching.ObjectCache = Caching.MemoryCache.Default
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        If Not IsNothing(WorkBook) Then
+            CloseWorkbook()
+        End If
         OpenFileDialog1.Filter = "Archivos Excel(*.xlsx)|*.xlsx|Excel (97-2003) files(*.xls)|*.xls"
         If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
             Dim WorkBooks = Excel.Workbooks.Open(OpenFileDialog1.FileName)
             WorkBook = WorkBooks
+            ListBox1.Items.Clear()
             For Each WorkSheet In Excel.Sheets
                 ListBox1.Items.Add(WorkSheet.Name)
             Next
         End If
     End Sub
 
-
+    Private Sub CloseWorkbook()
+        Dim savestate = (MsgBox("Queres Guardar antes de salir?", vbYesNo) = vbYes)
+        WorkBook.Close(SaveChanges:=savestate)
+    End Sub
 
     Private Sub Form1_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
         If Not IsNothing(WorkBook) Then
-            Debug.WriteLine("a1")
-            WorkBook.Close()
+            CloseWorkbook()
             WorkBook = Nothing
         End If
+
         Excel.Quit()
     End Sub
 
-
     Private Sub ListBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListBox1.SelectedIndexChanged
-        WorkBook.Worksheets(ListBox1.SelectedItem).activate()
         WorkSheet = WorkBook.Worksheets(ListBox1.SelectedItem)
         Button2.Visible = True
-        range = WorkSheet.UsedRange
-        DataGridView1.DataSource = DataSetCreate()
+        If IsNothing(cache(WorkSheet.Name)) Then
+            DataGridView1.DataSource = DataSetCreate()
+            Debug.WriteLine("C1")
+        Else
+            DataGridView1.DataSource = cache(WorkSheet.Name)
+        End If
     End Sub
 
     Private Function DataSetCreate()
@@ -48,15 +55,21 @@ Public Class Form1
         Dim command = New OleDb.OleDbDataAdapter(sqlstr, conn)
         Dim table As New Data.DataSet
         command.Fill(table)
+        CachingSheet(table)
         Return table.Tables(0)
     End Function
+
+    Private Sub CachingSheet(ByVal table As Data.DataSet)
+        Dim policy = New Caching.CacheItemPolicy
+        cache.Set(WorkSheet.Name, table.Tables(0), policy)
+
+    End Sub
 
     Dim row As Integer
     Dim column As Integer
     Private Sub DataGridView1_CellBeginEdit(sender As Object, e As DataGridViewCellCancelEventArgs) Handles DataGridView1.CellBeginEdit
         column = DataGridView1.CurrentCell.ColumnIndex + 1
         row = DataGridView1.CurrentCell.RowIndex + 2
-        Debug.WriteLine(DataGridView1.CurrentCell.Value)
     End Sub
     Private Sub DataGridView1_CellEndEdit(sender As Object, e As DataGridViewCellEventArgs) Handles DataGridView1.CellEndEdit
         WorkSheet.Cells(row, column) = DataGridView1.CurrentCell.Value
