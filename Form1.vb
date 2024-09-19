@@ -1,21 +1,14 @@
 ﻿
 Imports Microsoft.Office.Interop
-Imports System.Runtime
+Imports System.Data.OleDb
 
 Public Class Form1
     Dim Excel As New Excel.Application
     Dim WorkBook As Excel.Workbook
     Dim WorkSheet As Excel.Worksheet
-    Dim cache As Caching.ObjectCache = Caching.MemoryCache.Default
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         OpenFileDialog1.Filter = "Archivos Excel(*.xlsx)|*.xlsx|Excel (97-2003) files(*.xls)|*.xls"
         If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
-            If Not IsNothing(WorkBook) Then
-                CloseWorkbook()
-                For Each i In cache
-                    cache.Remove(i.Key)
-                Next
-            End If
             Dim WorkBooks = Excel.Workbooks.Open(OpenFileDialog1.FileName)
             WorkBook = WorkBooks
             ListBox1.Items.Clear()
@@ -37,12 +30,7 @@ Public Class Form1
     Private Sub ListBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListBox1.SelectedIndexChanged
         WorkSheet = WorkBook.Worksheets(ListBox1.SelectedItem)
         Button2.Visible = True
-        If IsNothing(cache(WorkSheet.Name)) Then
-            DataGridView1.DataSource = DataSetCreate()
-            Debug.WriteLine("C1")
-        Else
-            DataGridView1.DataSource = cache(WorkSheet.Name)
-        End If
+        DataGridView1.DataSource = DataSetCreate()
     End Sub
 
     Dim row As Integer
@@ -61,20 +49,27 @@ Public Class Form1
     Private Function DataSetCreate()
         Dim pathto = (WorkBook.Path + "\" + WorkBook.Name)
         Dim connString As String = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + pathto + ";Extended Properties='Excel 12.0 Xml;HDR=YES';"
-        Dim conn = New OleDb.OleDbConnection(connString)
-        Dim sqlstr = "Select * from " + "[" + WorkSheet.Name + "$" + "]"
-        Dim command = New OleDb.OleDbDataAdapter(sqlstr, conn)
-        Dim table As New Data.DataSet
-        command.Fill(table)
-        CachingSheet(table)
-        Return table.Tables(0)
+        Dim connection = New OleDb.OleDbConnection(connString)
+        connection.Open()
+        Dim sheetTable As DataTable = connection.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, Nothing)
+        Dim dataSet As New Data.DataSet
+        If sheetTable IsNot Nothing Then
+            For Each row As DataRow In sheetTable.Rows
+                Dim sheetName As String = row("TABLE_NAME").ToString()
+
+                ' Query each sheet
+                Dim query As String = $"SELECT * FROM [{sheetName}]"
+                Using command As New OleDbCommand(query, connection)
+                    Using adapter As New OleDbDataAdapter(command)
+                        Dim dataTable As New DataTable(sheetName)
+                        adapter.Fill(dataTable)
+                        dataSet.Tables.Add(dataTable)
+                    End Using
+                End Using
+            Next
+        End If
+        Return dataSet.Tables
     End Function
-
-    Private Sub CachingSheet(ByVal table As Data.DataSet)
-        Dim policy = New Caching.CacheItemPolicy
-        cache.Set(WorkSheet.Name, table.Tables(0), policy)
-
-    End Sub
 
     Private Sub CloseWorkbook()
         If Not WorkBook.Saved Then
@@ -82,4 +77,5 @@ Public Class Form1
             WorkBook.Close(SaveChanges:=savestate)
         End If
     End Sub
+
 End Class
