@@ -1,13 +1,16 @@
 ﻿Imports Microsoft.Office.Interop
 Imports System.Runtime
+Imports System.Security.Cryptography
+Imports System.Text
 
 Public Class Form1
-    Dim Excel As New Excel.Application
+    Dim WithEvents Excel As New Excel.Application
     Dim WorkBook As Excel.Workbook
+    Dim WorkSheets As Excel.Worksheets
     Dim WorkSheet As Excel.Worksheet
     Dim cache As Caching.ObjectCache = Caching.MemoryCache.Default
-    Public Event PropertyChanged(ByVal sender As Object, ByVal e As EventArgs) WorkbookChanges As Excel.WorkbookEvents_SheetChangeEventHandler
-    
+    Dim currentDataGridHash As Dictionary(Of Integer, String) ' Hash del DataGridView
+
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
         OpenFileDialog1.Filter = "Archivos Excel(*.xlsx)|*.xlsx|Excel (97-2003) files(*.xls)|*.xls"
         If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
@@ -39,10 +42,12 @@ Public Class Form1
         WorkSheet = WorkBook.Worksheets(ListBox1.SelectedItem)
         Button2.Visible = True
         If IsNothing(cache(WorkSheet.Name)) Then
-            DataGridView1.DataSource = DataSetCreate()
+            DataGridView1.DataSource = DataSetCreate(WorkSheet)
+            currentDataGridHash = CreateHashDictionary(DataGridView1)
             Debug.WriteLine("C1")
         Else
             DataGridView1.DataSource = cache(WorkSheet.Name)
+            currentDataGridHash = CreateHashDictionary(DataGridView1)
         End If
     End Sub
 
@@ -59,26 +64,22 @@ Public Class Form1
         WorkBook.Save()
     End Sub
 
-    Private Function DataSetCreate()
+    Private Function DataSetCreate(ByVal worksheet As Excel.Worksheet)
         Dim pathto = (WorkBook.Path + "\" + WorkBook.Name)
         Dim connString As String = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=" + pathto + ";Extended Properties='Excel 12.0 Xml;HDR=YES';"
-        Dim conn = New OleDb.OleDbConnection(connString)
-        Dim sqlstr = "Select * from " + "[" + WorkSheet.Name + "$" + "]"
-        Dim command = New OleDb.OleDbDataAdapter(sqlstr, conn)
-        Dim table As New Data.DataSet
-        command.Fill(table)
-        CachingSheet(table)
-        Return table.Tables(0)
+        Using conn = New OleDb.OleDbConnection(connString)
+            Dim sqlstr = "Select * from " + "[" + worksheet.Name + "$" + "]"
+            Dim command = New OleDb.OleDbDataAdapter(sqlstr, conn)
+            Dim table As New Data.DataSet
+            command.Fill(table)
+            CachingSheet(table, worksheet.Name)
+            Return table.Tables(0)
+        End Using
     End Function
 
-    Private Sub CachingSheet(ByVal table As Data.DataSet)
+    Private Sub CachingSheet(ByVal table As Data.DataSet, ByVal name As String)
         Dim policy = New Caching.CacheItemPolicy
-        cache.Set(WorkSheet.Name, table.Tables(0), policy)
-    End Sub
-
-
-    Private Sub ReloadOnChange()
-
+        cache.Set(name, table.Tables(0), policy)
     End Sub
 
     Private Sub CloseWorkbook()
@@ -87,4 +88,51 @@ Public Class Form1
             WorkBook.Close(SaveChanges:=savestate)
         End If
     End Sub
+
+    Private Function GetRowHash(row As Object) As String
+        ' Serializar el array de objetos de la fila
+        Dim rawData As String = String.Join(",", row)
+        Using md5 As MD5 = MD5.Create()
+            Dim bytes = Encoding.UTF8.GetBytes(rawData)
+            Dim hashBytes = md5.ComputeHash(bytes)
+            Return BitConverter.ToString(hashBytes).Replace("-", "").ToLower()
+        End Using
+    End Function
+
+    Private Sub CompareTablesAndUpdate(oldTableHashes As Dictionary(Of Integer, String), newTable As Data.DataTable)
+        ' Comparar con la nueva tabla
+        For rowIndex As Integer = 0 To newTable.Rows.Count - 1
+            Dim newRowHash As String = GetRowHash(newTable.Rows(rowIndex))
+
+            ' Verificar si la fila ha cambiado comparando el hash
+            If oldTableHashes.ContainsKey(rowIndex) Then
+                If oldTableHashes(rowIndex) <> newRowHash Then
+                    ' Actualizar solo las celdas de la fila que ha cambiado
+                    For columnIndex As Integer = 0 To newTable.Columns.Count - 1
+                        DataGridView1.Rows(rowIndex).Cells(columnIndex).Value = newTable.Rows(rowIndex)(columnIndex)
+                    Next
+                End If
+            End If
+        Next
+    End Sub
+
+    Private Function CreateHashDictionary(dgv As DataGridView) As Dictionary(Of Integer, String)
+        Dim hashDict As New Dictionary(Of Integer, String)
+        For rowIndex As Integer = 0 To dgv.Rows.Count - 1
+            Dim rowHash As String = GetRowHash(dgv.Rows(rowIndex).Cells.Cast(Of DataGridViewCell).Select(Function(cell) cell.Value).ToArray())
+            hashDict(rowIndex) = rowHash
+        Next
+        Return hashDict
+    End Function
+
+    Private Sub WorkBookSheetChanges(sh As Object) Handles Excel.SheetCalculate
+        Dim worksheetnew As Excel.Worksheet = TryCast(sh, Excel.Worksheet)
+        Dim newTable As Data.DataTable = DataSetCreate(worksheetnew)
+
+        If WorkSheet IsNot Nothing AndAlso WorkSheet.Name = worksheetnew.Name Then
+            ' Comparar solo si estamos en la tabla actual
+            CompareTablesAndUpdate(currentDataGridHash, newTable)
+        End If
+    End Sub
+
 End Class
