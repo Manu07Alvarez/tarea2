@@ -2,13 +2,13 @@
 Imports System.Runtime
 Imports System.Security.Cryptography
 Imports System.Text
-
+Imports System.Threading
 Public Class Form1
     Dim WithEvents Excel As New Excel.Application
     Dim WorkBook As Excel.Workbook
     Dim WorkSheets As Excel.Worksheets
     Dim WorkSheet As Excel.Worksheet
-    Dim cache As Caching.ObjectCache = Caching.MemoryCache.Default
+    Dim cacheWorkbook As Caching.ObjectCache = Caching.MemoryCache.Default
     Dim currentDataGridHash As Dictionary(Of Integer, String) ' Hash del DataGridView
 
     Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
@@ -16,8 +16,8 @@ Public Class Form1
         If OpenFileDialog1.ShowDialog() = DialogResult.OK Then
             If Not IsNothing(WorkBook) Then
                 CloseWorkbook()
-                For Each i In cache
-                    cache.Remove(i.Key)
+                For Each i In cacheWorkbook
+                    cacheWorkbook.Remove(i.Key)
                 Next
             End If
             Dim WorkBooks = Excel.Workbooks.Open(OpenFileDialog1.FileName)
@@ -41,13 +41,13 @@ Public Class Form1
     Private Sub ListBox1_SelectedIndexChanged(sender As Object, e As EventArgs) Handles ListBox1.SelectedIndexChanged
         WorkSheet = WorkBook.Worksheets(ListBox1.SelectedItem)
         Button2.Visible = True
-        If IsNothing(cache(WorkSheet.Name)) Then
+        If IsNothing(cacheWorkbook(WorkSheet.Name)) Then
             DataGridView1.DataSource = DataSetCreate(WorkSheet)
-            currentDataGridHash = CreateHashDictionary(DataGridView1)
+            currentDataGridHash = CreateHashDictionary(DataGridView1, WorkSheet.Name + "Hash")
             Debug.WriteLine("C1")
         Else
-            DataGridView1.DataSource = cache(WorkSheet.Name)
-            currentDataGridHash = CreateHashDictionary(DataGridView1)
+            DataGridView1.DataSource = cacheWorkbook(WorkSheet.Name)
+            currentDataGridHash = cacheWorkbook(WorkSheet.Name + "Hash")
         End If
     End Sub
 
@@ -72,14 +72,14 @@ Public Class Form1
             Dim command = New OleDb.OleDbDataAdapter(sqlstr, conn)
             Dim table As New Data.DataSet
             command.Fill(table)
-            CachingSheet(table, worksheet.Name)
+            CachingF(table.Tables(0), worksheet.Name)
             Return table.Tables(0)
         End Using
     End Function
 
-    Private Sub CachingSheet(ByVal table As Data.DataSet, ByVal name As String)
+    Private Sub CachingF(value, name)
         Dim policy = New Caching.CacheItemPolicy
-        cache.Set(name, table.Tables(0), policy)
+        cacheWorkbook.Set(name, value, policy)
     End Sub
 
     Private Sub CloseWorkbook()
@@ -116,20 +116,21 @@ Public Class Form1
         Next
     End Sub
 
-    Private Function CreateHashDictionary(dgv As DataGridView) As Dictionary(Of Integer, String)
+    Private Function CreateHashDictionary(dgv As DataGridView, name As String) As Dictionary(Of Integer, String)
         Dim hashDict As New Dictionary(Of Integer, String)
         For rowIndex As Integer = 0 To dgv.Rows.Count - 1
             Dim rowHash As String = GetRowHash(dgv.Rows(rowIndex).Cells.Cast(Of DataGridViewCell).Select(Function(cell) cell.Value).ToArray())
             hashDict(rowIndex) = rowHash
         Next
+        CachingF(hashDict, name)
         Return hashDict
     End Function
 
-    Private Sub WorkBookSheetChanges(sh As Object) Handles Excel.SheetCalculate
+    Private Async Sub WorkBookSheetChangesAsync(sh As Object) Handles Excel.SheetCalculate
         Dim worksheetnew As Excel.Worksheet = TryCast(sh, Excel.Worksheet)
-        Dim newTable As Data.DataTable = DataSetCreate(worksheetnew)
+        Dim newTable As Data.DataTable = Await Task.Run(DataSetCreate(worksheetnew))
 
-        If WorkSheet IsNot Nothing AndAlso WorkSheet.Name = worksheetnew.Name Then
+        If WorkSheet.Name = worksheetnew.Name Then
             ' Comparar solo si estamos en la tabla actual
             CompareTablesAndUpdate(currentDataGridHash, newTable)
         End If
